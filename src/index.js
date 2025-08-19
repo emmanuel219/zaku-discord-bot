@@ -1,9 +1,7 @@
-import { Client, Collection, GatewayIntentBits, Events } from 'discord.js';
-import { getJoinMessage } from './joinmessage.js';
+import { Client, Collection, GatewayIntentBits, Events, MessageFlags, PollLayoutType } from 'discord.js';
+import { getJoinMessage } from '../messages/joinmessage.js';
 import { botToken } from './environment.js';
-import help from '../commands/help.cjs';
-import path from 'path';
-import fs from 'fs';
+import * as pollcommand from '../commands/poll.js';
 
 const client = new Client({
   intents: [
@@ -11,11 +9,12 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessagePolls,
   ],
 });
 
 client.commands = new Collection();
-client.commands.set('help', help);
+client.commands.set('poll', pollcommand);
 
 client.once(Events.ClientReady, readyClient => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
@@ -41,33 +40,53 @@ client.on(Events.GuildMemberAdd, (message) => {
 
 });
 
-client.on(Events.InteractionCreate, interaction => {
+// handling commands
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) { return; }
-  console.log(interaction);
+
+  const command = interaction.client.commands.get(interaction.commandName);
+
+  if (!command) {
+    console.error(`No command matching ${interaction.commandName} was found.`);
+    return;
+  }
+
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(error);
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
+    } else {
+      await interaction.reply({ content: 'There was an error while executing this command!', flags: MessageFlags.Ephemeral });
+    }
+  }
 });
 
-/*client.on(Events.GuildMemberAdd, (message) => {
-    console.log(message);
-    if(message.author != client.user){
-            message.channel.send(getJoinMessage())
-        .then((res) => {
-        console.log('User join message sent successfully!');
-    }).catch((error) => {
-        console.log('Error sending user join message', error);
-    });
+//handling modal submission
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isModalSubmit()) { return; }
+
+  if (interaction.customId === 'pollModal') {
+    try {
+      const pollOptions = [];
+      const emojiOptions = ['🤖', '🛡️', '⚔️', '⚡', '🚀'];
+
+      for (let x = 1; x <= 5; x = x + 1) {
+        const option = interaction.fields.getTextInputValue(`gunpla${x}`).trim();
+        if (option) {
+          pollOptions.push({ text: option, emoji: emojiOptions[x - 1] });
+        }
+      }
+      await interaction.reply({ poll: {
+        question : { text: `${interaction.user.displayName} needs your help choosing what gundam to build next!` },
+        answers: pollOptions,
+        allowMultiselect: false,
+        duration: 1,
+        layoutType: PollLayoutType.Default,
+      }, content: `<@${interaction.user.id}> created a poll!` });
+    } catch (error) {
+      console.log('Error while creating poll', error);
     }
-})*/
-
-/*const commandFolder = 'commands';
-const commandFiles = fs.readdirSync(commandFolder);
-
-for (const file of commandFiles){
-  const command = require(path.join(commandFolder, file));
-  // Set a new item in the Collection with the key as the command name and the value as the exported module
-  if ('data' in command && 'execute' in command) {
-    client.commands.set(command.data.name, command);
-    console.log(client.commads);
-  } else {
-    console.log('[WARNING] The command at is missing a required "data" or "execute" property.');
   }
-}*/
+});

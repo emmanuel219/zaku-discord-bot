@@ -1,13 +1,10 @@
 import { REST, Routes } from 'discord.js';
-import { clientId, serverId, botToken } from './environment.js';
-import fs from 'node:fs';
+import { botToken, clientId, serverId } from './environment.js';
+import * as pollcommand from '../commands/poll.js';
 
-const helpObj = fs.readFileSync('./commands/help.cjs');  // load the JS module
-const file = JSON.stringify(helpObj, null, 2);
-console.log(file);
+const commands = [];
 
-const commands = [file];
-
+commands.push(pollcommand.data.toJSON());
 // Construct and prepare an instance of the REST module
 const rest = new REST().setToken(botToken);
 
