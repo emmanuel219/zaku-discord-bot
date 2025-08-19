@@ -85,6 +85,8 @@ client.on(Events.InteractionCreate, async interaction => {
         duration: 1,
         layoutType: PollLayoutType.Default,
       }, content: `<@${interaction.user.id}> created a poll!` });
+
+      console.log(`${interaction.user.username} successfully created a poll!`);
     } catch (error) {
       console.log('Error while creating poll', error);
     }
